@@ -1,3 +1,91 @@
+# AI Agent Quick Start
+
+## Setup
+
+```sh
+git clone https://github.com/open-pencil/open-pencil && cd open-pencil
+bun install
+bun run check   # lint + typecheck — verify everything builds
+```
+
+## CLI Workflow
+
+Create and modify .fig design files from the command line. Every command supports `--json` for machine-readable output.
+
+```sh
+# Create a blank document
+bun open-pencil new design.fig
+
+# Create a frame (container)
+bun open-pencil create design.fig --type FRAME --name "Card" --x 0 --y 0 --width 320 --height 400 -w --json
+# → { "id": "1:2", "name": "Card", "type": "FRAME", ... }
+
+# Style it
+bun open-pencil fill design.fig --id 1:2 --color "#FFFFFF" -w
+bun open-pencil stroke design.fig --id 1:2 --color "#E0E0E0" --weight 1 -w
+
+# Set auto-layout (flexbox)
+bun open-pencil layout design.fig --id 1:2 --direction VERTICAL --spacing 16 --padding 24 -w
+
+# Add child nodes
+bun open-pencil create design.fig --type TEXT --name "Title" --x 0 --y 0 --width 272 --height 24 --parent 1:2 -w
+bun open-pencil create design.fig --type RECTANGLE --name "Image" --x 0 --y 0 --width 272 --height 180 --parent 1:2 -w
+
+# Or create an entire tree in one call with JSX
+bun open-pencil render design.fig --jsx '<Frame name="Card" w={320} h="hug" flex="col" gap={16} p={24} bg="#FFF" rounded={16}><Text size={18} weight="bold">Title</Text><Rect w="fill" h={180} bg="#F0F0F0" rounded={8}/></Frame>' -w
+
+# Inspect the result
+bun open-pencil tree design.fig
+bun open-pencil node design.fig --id 1:2 --json
+
+# Take a screenshot to verify visually
+bun open-pencil screenshot design.fig
+
+# Move, resize, update properties
+bun open-pencil move design.fig --id 1:2 --x 100 --y 50 -w
+bun open-pencil resize design.fig --id 1:2 --width 400 --height 500 -w
+bun open-pencil update design.fig --id 1:2 --opacity 0.9 --corner-radius 16 -w
+
+# Clone or delete
+bun open-pencil clone design.fig --id 1:2 -w
+bun open-pencil delete design.fig --id 1:3 -w
+```
+
+The `-w` flag writes changes back to the file. Without it, commands execute in dry-run mode (useful for previewing results).
+
+Pipe JSX from stdin to avoid shell escaping issues:
+
+```sh
+cat <<'JSX' | bun open-pencil render design.fig --stdin -w
+<Frame name="Header" w={1440} h={80} flex="row" gap={24} px={32} bg="#1A1A1A" items="center">
+  <Text size={20} weight="bold" color="#FFF">OpenPencil</Text>
+  <Text size={14} color="#999">Docs</Text>
+  <Text size={14} color="#999">Pricing</Text>
+</Frame>
+JSX
+```
+
+## Key Paths for Contributing
+
+| Path | Purpose |
+|------|---------|
+| `packages/core/src/tools/schema.ts` | All tool definitions (`ToolDef` + `ALL_TOOLS` array) |
+| `packages/cli/src/commands/` | CLI command files |
+| `packages/cli/src/index.ts` | CLI command registration |
+| `packages/cli/src/tool-runner.ts` | Shared load → execute → write helper |
+| `packages/cli/src/headless.ts` | Document loading + headless rendering |
+| `packages/cli/src/format.ts` | agentfmt output adapters |
+| `packages/core/src/figma-api.ts` | FigmaAPI — execution target for all tools |
+| `packages/mcp/src/server.ts` | MCP server (auto-registers from ALL_TOOLS) |
+
+## Adding a New Tool
+
+1. Add `defineTool({ name, description, params, execute })` in `packages/core/src/tools/schema.ts`
+2. Add to the `ALL_TOOLS` array at the bottom of the same file — instantly available in AI chat and MCP
+3. (Optional) Add a CLI command in `packages/cli/src/commands/<name>.ts` and register in `packages/cli/src/index.ts`
+
+---
+
 # OpenPencil
 
 Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also runs in browser.
@@ -90,7 +178,7 @@ When adding features, update `CHANGELOG.md` (Unreleased section) and `README.md`
 - `defineTool()` gives type-safe params in the execute body; the array `ALL_TOOLS` erases the generics for adapters
 - AI adapter (`packages/core/src/tools/ai-adapter.ts`): `toolsToAI()` converts ToolDefs → valibot schemas + Vercel AI `tool()` wrappers
 - `src/ai/tools.ts` is just a thin wire: creates FigmaAPI from editor store, calls `toolsToAI()`
-- CLI commands (`packages/cli/src/commands/`) are **not** generated from ToolDefs — they have custom agentfmt formatting, tree walking, pagination. The `eval` command is the CLI's access to all ToolDef operations via FigmaAPI.
+- CLI has two patterns: **inspection commands** (tree, find, node, pages, etc.) have custom agentfmt formatting and are NOT generated from ToolDefs. **Creation/modification commands** (create, fill, stroke, layout, update, delete, clone, move, resize, render) are thin wrappers around ToolDefs via `runTool()` in `packages/cli/src/tool-runner.ts`. The `eval` command provides raw FigmaAPI access for anything not covered by a dedicated command.
 - MCP adapter (`packages/mcp/src/server.ts`): `createServer()` converts ToolDefs → zod schemas + MCP `registerTool()`. Adds `open_file`, `save_file`, `new_document` for headless file ops. Two entry points: `index.ts` (stdio), `http.ts` (Hono + Streamable HTTP with sessions).
 - To add a new tool: add a `defineTool()` in `schema.ts`, add to `ALL_TOOLS` array — it's instantly available in AI chat, MCP, and via `eval` in CLI
 - `FigmaAPI` (`packages/core/src/figma-api.ts`) is the execution target for all tools — Figma Plugin API compatible, uses Symbols for hidden internals
