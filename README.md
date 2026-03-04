@@ -18,6 +18,50 @@ Open-source, AI-native design editor. Figma-compatible, AI-first, fully local.
 
 ![OpenPencil](packages/docs/public/screenshot.png)
 
+## Use with AI
+
+OpenPencil is designed for AI-driven design workflows. Every design operation is available as a CLI command or MCP tool.
+
+### CLI (recommended for AI agents)
+
+Create and modify `.fig` files directly from the command line:
+
+```sh
+bun open-pencil new design.fig                                              # Create blank file
+bun open-pencil create design.fig --type FRAME --name Card --x 0 --y 0 --width 320 --height 400 -w --json
+bun open-pencil fill design.fig --id 1:2 --color "#FFFFFF" -w
+bun open-pencil layout design.fig --id 1:2 --direction VERTICAL --spacing 16 --padding 24 -w
+bun open-pencil screenshot design.fig                                       # Render to PNG for visual verification
+```
+
+Or create entire component trees in one call with JSX:
+
+```sh
+echo '<Frame name="Card" w={320} h="hug" flex="col" gap={16} p={24} bg="#FFF" rounded={16}><Text size={18} weight="bold">Title</Text></Frame>' | bun open-pencil render design.fig --stdin -w
+```
+
+All commands support `--json` for structured output. Run `bun open-pencil --help` for the full command list.
+
+### MCP Server
+
+For AI tools that support MCP (Claude Code, Cursor, Windsurf):
+
+```sh
+bun add -g @open-pencil/mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "open-pencil": {
+      "command": "openpencil-mcp"
+    }
+  }
+}
+```
+
+75 tools: create shapes, set fills/strokes/layout, variables, vectors, boolean ops, viewport, render JSX to design nodes, open/save `.fig` files. [Full tool reference →](https://openpencil.dev/reference/mcp-tools)
+
 ## Why
 
 Figma is a closed platform that actively fights programmatic access. Their [MCP server](https://www.figma.com/blog/introducing-figma-mcp-server/), launched in June 2025, was read-only — you could pull design context but not create or modify anything. [figma-use](https://github.com/dannote/figma-use) filled that gap in January 2026 with full read/write design automation via CDP. A month later, [Figma 126.1.2 started stripping `--remote-debugging-port`](https://forum.figma.com/report-a-problem-6/remote-debugging-port-not-working-in-figma-desktop-126-1-2-50858) on startup — killing CDP-based tools. Figma has since added UI-to-Figma capture via their MCP server, but it still can't programmatically create or modify design nodes.
@@ -44,7 +88,7 @@ Your design files are yours. Your tools should be too.
 - **Drawing tools** — shapes, pen tool with vector networks, rich text with system fonts, auto-layout, components with live sync, variables with modes and collections
 - **AI chat** — describe what you want, the AI builds it. 75 tools wired to chat, CLI, and MCP
 - **MCP server** — connect Claude Code, Cursor, or any MCP client to read/write .fig files headlessly
-- **Headless CLI** — inspect, search, analyze, and render .fig files without a GUI
+- **Headless CLI** — create, modify, inspect, analyze, and render .fig files from the command line. First-class commands for AI agent workflows
 - **~7 MB desktop app** — Tauri v2, macOS/Windows/Linux. Also runs in the browser
 
 ## Tech Stack
@@ -88,52 +132,26 @@ All sync happens peer-to-peer via [Trystero](https://github.com/dmotz/trystero).
 
 ## CLI
 
-Headless .fig file operations — no GUI needed:
+Create, modify, inspect, and render .fig files — no GUI needed:
 
 ```sh
+# Inspect
 bunx @open-pencil/cli info design.fig         # Document stats, node types, fonts
 bunx @open-pencil/cli tree design.fig         # Visual node tree
 bunx @open-pencil/cli find design.fig --type TEXT  # Search by name or type
+
+# Create & modify
+bunx @open-pencil/cli new design.fig                                     # Create blank file
+bunx @open-pencil/cli create design.fig --type FRAME --name Card --x 0 --y 0 --width 320 --height 200 -w
+bunx @open-pencil/cli fill design.fig --id 1:2 --color "#FF0000" -w
+bunx @open-pencil/cli screenshot design.fig                              # Render to PNG
+
+# Export
 bunx @open-pencil/cli export design.fig       # Render to PNG
 bunx @open-pencil/cli export design.fig -f jpg -s 2 -q 90  # JPG at 2x
 ```
 
 All commands support `--json` for machine-readable output.
-
-## MCP Server
-
-Connect AI coding tools to read and modify `.fig` files headlessly. [Full docs →](https://openpencil.dev/reference/mcp-tools)
-
-**Stdio** (Claude Code, Cursor, Windsurf) — add to your MCP config:
-
-```sh
-bun add -g @open-pencil/mcp
-```
-
-```json
-{
-  "mcpServers": {
-    "open-pencil": {
-      "command": "openpencil-mcp"
-    }
-  }
-}
-```
-
-**HTTP** (scripts, browser extensions, CI):
-
-```sh
-openpencil-mcp-http   # http://localhost:3100/mcp
-```
-
-Security defaults for HTTP transport:
-- Binds to `127.0.0.1` by default (`HOST` to override)
-- `eval` tool is disabled
-- File access is restricted to `OPENPENCIL_MCP_ROOT` (defaults to current working directory)
-- Optional auth: set `OPENPENCIL_MCP_AUTH_TOKEN` and send `Authorization: Bearer <token>` (or `x-mcp-token`)
-- CORS is disabled by default; set `OPENPENCIL_MCP_CORS_ORIGIN` to allow a specific origin
-
-75 tools: create shapes, set fills/strokes/layout, variables, vectors, boolean ops, viewport, find nodes, open/save `.fig` files, render JSX to design nodes.
 
 ## Scripts
 
@@ -194,7 +212,7 @@ For other distros, see the [Tauri v2 prerequisites](https://v2.tauri.app/start/p
 ```
 packages/
   core/           @open-pencil/core — engine (scene graph, renderer, layout, codec)
-  cli/            @open-pencil/cli — headless CLI (info, tree, find, export)
+  cli/            @open-pencil/cli — headless CLI (create, modify, inspect, export)
   mcp/            @open-pencil/mcp — MCP server (stdio + HTTP)
   docs/           VitePress documentation site
 src/

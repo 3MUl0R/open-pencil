@@ -1,5 +1,7 @@
 import CanvasKitInit from 'canvaskit-wasm/full'
 import type { CanvasKit } from 'canvaskit-wasm'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import {
   parseFigFile,
   SceneGraph,
@@ -16,9 +18,9 @@ let ck: CanvasKit | null = null
 export async function initCanvasKit(): Promise<CanvasKit> {
   if (ck) return ck
   const ckPath = import.meta.resolve('canvaskit-wasm/full')
-  const binDir = new URL('.', ckPath).pathname
+  const binDir = dirname(fileURLToPath(ckPath))
   ck = await CanvasKitInit({
-    locateFile: (file) => binDir + file
+    locateFile: (file) => join(binDir, file)
   })
   return ck
 }
